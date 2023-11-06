@@ -2,18 +2,17 @@ project:
   type: website
 
 website:
-  title: "Myblog"
+  title: "Giuseppe and Projects"
   navbar:
     right:
       - about.qmd
+      - icon: linkedin
+        text: LinkedIn
+        href: https://www.linkedin.com/in/giuseppett/
       - icon: github
-        href: https://github.com/
-      - icon: twitter
-        href: https://twitter.com
+        text: Github
+        href: https://github.com/GiuseppeTT
 format:
   html:
     theme: cosmo
     css: styles.css
-
-
-
