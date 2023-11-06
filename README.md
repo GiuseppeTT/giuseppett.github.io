@@ -1,2 +1,3 @@
 # giuseppett.github.io
-Blog for personal projects
+
+Blog for personal projects.
