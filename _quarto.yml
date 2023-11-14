@@ -12,6 +12,7 @@ website:
         text: Github
         href: https://github.com/GiuseppeTT
       - about.qmd
+
 format:
   html:
     theme: cosmo
