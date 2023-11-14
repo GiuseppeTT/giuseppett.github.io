@@ -7,24 +7,24 @@
     "text": "Hi 👋, I’m Giuseppe. This is a blog about my personal projects."
   },
   {
-    "objectID": "posts/post-with-code/index.html",
-    "href": "posts/post-with-code/index.html",
-    "title": "Post With Code",
-    "section": "",
-    "text": "This is a post with executable code."
-  },
-  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "Giuseppe and Projects",
     "section": "",
-    "text": "Post With Code\n\n\n\n\n\n\n\nnews\n\n\ncode\n\n\nanalysis\n\n\n\n\n\n\n\n\n\n\n\nNov 5, 2023\n\n\nHarlow Malloc\n\n\n\n\n\n\n  \n\n\n\n\nWelcome To My Blog\n\n\n\n\n\n\n\nnews\n\n\n\n\n\n\n\n\n\n\n\nNov 2, 2023\n\n\nTristan O’Malley\n\n\n\n\n\n\nNo matching items"
+    "text": "Liar’s dice\n\n\n\n\n\n\n\nanalysis\n\n\nworkout\n\n\n\n\n\n\n\n\n\n\n\nNov 6, 2023\n\n\nGiuseppe Tinti Tomio\n\n\n\n\n\n\nNo matching items"
   },
   {
-    "objectID": "posts/welcome/index.html",
-    "href": "posts/welcome/index.html",
-    "title": "Welcome To My Blog",
+    "objectID": "posts/01-liars-dice/index.html",
+    "href": "posts/01-liars-dice/index.html",
+    "title": "Liar’s dice",
     "section": "",
-    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+    "text": "Liar’s Dice is a game based on luck but you can play smart. A good strategy is to start your bet with 25%~33% of the number of dice and call liar if the current bet is 40% of the number of dice or higher."
+  },
+  {
+    "objectID": "posts/01-liars-dice/index.html#approximation-rules",
+    "href": "posts/01-liars-dice/index.html#approximation-rules",
+    "title": "Liar’s dice",
+    "section": "Approximation rules",
+    "text": "Approximation rules\nWe can regress the optimal bet on the dice count and the confidence level to find the approximation rules like so\noptimal_bet ~ dice_count, for each confidence level\nwhich yields the following coefficients\n\n10% confidence level: 40.05%\n50% confidence level: 33.38%\n90% confidence level: 26.35%"
   }
 ]
