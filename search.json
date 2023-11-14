@@ -1,0 +1,30 @@
+[
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "Hi 👋, I’m Giuseppe. This is a blog about my personal projects."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Giuseppe and Projects",
+    "section": "",
+    "text": "Liar’s dice\n\n\n\n\n\n\n\nanalysis\n\n\nworkout\n\n\n\n\n\n\n\n\n\n\n\nNov 6, 2023\n\n\nGiuseppe Tinti Tomio\n\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "posts/01-liars-dice/index.html",
+    "href": "posts/01-liars-dice/index.html",
+    "title": "Liar’s dice",
+    "section": "",
+    "text": "Liar’s Dice is a game based on luck but you can play smart. A good strategy is to start your bet with 25%~33% of the number of dice and call liar if the current bet is 40% of the number of dice or higher."
+  },
+  {
+    "objectID": "posts/01-liars-dice/index.html#approximation-rules",
+    "href": "posts/01-liars-dice/index.html#approximation-rules",
+    "title": "Liar’s dice",
+    "section": "Approximation rules",
+    "text": "Approximation rules\nWe can regress the optimal bet on the dice count and the confidence level to find the approximation rules like so\noptimal_bet ~ dice_count, for each confidence level\nwhich yields the following coefficients\n\n10% confidence level: 40.05%\n50% confidence level: 33.38%\n90% confidence level: 26.35%"
+  }
+]
