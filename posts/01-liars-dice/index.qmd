@@ -1,8 +1,8 @@
 ---
 title: "Liar's dice"
 author: "Giuseppe Tinti Tomio"
-date: "2023-11-06"
-categories: [analysis, workout]
+date: "2023-11-14"
+categories: [analysis, game]
 image: "image.webp"
 execute:
   echo: false
