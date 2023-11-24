@@ -1,0 +1,704 @@
+---
+title: "TFT headliner rolldown"
+author: "Giuseppe Tinti Tomio"
+date: "2023-11-XX"
+categories: [analysis, game]
+image: "image.webp"
+execute:
+    echo: false
+    warning: false
+---
+
+```{r todo}
+# - (?) Bold min value for each column taking into account level up gold
+# - Write post text
+#     - Only show safe rolldown gold table for "any champion", "specific champion" and "trait"
+#     - (?) Only bold min value for each column taking into account level up gold
+# - Double check constant values
+```
+
+```{r libraries}
+library(tidyverse)
+library(gt)
+```
+
+```{r constants}
+# Sources:
+# - https://teamfighttactics.leagueoflegends.com/en-us/news/game-updates/teamfight-tactics-patch-13-23-notes/
+# - https://www.reddit.com/r/CompetitiveTFT/comments/s5fmj2/comment/ht6fet2/?utm_source=share&utm_medium=web2x&context=3
+
+LEVELS <- 1:10
+COSTS <- 1:5
+TRAITS <- c(
+    "8-Bit",
+    "Big Shot",
+    "Breakout",
+    "Bruiser",
+    "Country",
+    "Crowd Diver",
+    "Dazzler",
+    "Disco",
+    "Edgelord",
+    "EDM",
+    "Emo",
+    "Executioner",
+    "Fighter",
+    "Guardian",
+    "HEARTSTEEL",
+    "Hyperpop",
+    "ILLBEATS",
+    "Jazz",
+    "K/DA",
+    "Maestro",
+    "Mixmaster",
+    "Pentakill",
+    "Punk",
+    "Rapidfire",
+    "Sentinel",
+    "Spellweaver",
+    "Superfan",
+    "True Damage",
+    "Wildcard"
+)
+
+ORIGINS <- c(
+    "8-Bit",
+    "Breakout",
+    "Country",
+    "Disco",
+    "EDM",
+    "Emo",
+    "HEARTSTEEL",
+    "Hyperpop",
+    "ILLBEATS",
+    "Jazz",
+    "K/DA",
+    "Maestro",
+    "Mixmaster",
+    "Pentakill",
+    "Punk",
+    "True Damage",
+    "Wildcard"
+)
+
+GOLD_PER_ROLL <- 2 / 1
+GOLD_PER_XP <- 4 / 4
+
+# level -> cost -> probability
+COST_PROBABILITIES <- list(
+    "1" = list(
+        "1" = 1.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "2" = list(
+        "1" = 1.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "3" = list(
+        "1" = 1.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "4" = list(
+        "1" = 0.80,
+        "2" = 0.20,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "5" = list(
+        "1" = 0.30,
+        "2" = 0.70,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "6" = list(
+        "1" = 0.00,
+        "2" = 0.75,
+        "3" = 0.25,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "7" = list(
+        "1" = 0.00,
+        "2" = 0.40,
+        "3" = 0.60,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "8" = list(
+        "1" = 0.00,
+        "2" = 0.00,
+        "3" = 0.70,
+        "4" = 0.30,
+        "5" = 0.00
+    ),
+    "9" = list(
+        "1" = 0.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.90,
+        "5" = 0.10
+    ),
+    "10" = list(
+        "1" = 0.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.30,
+        "5" = 0.70
+    )
+)
+
+# cost -> count
+COST_COUNTS <- list(
+    "1" = 13,
+    "2" = 13,
+    "3" = 13,
+    "4" = 13,
+    "5" = 8
+)
+
+# cost -> trait -> count
+TRAIT_COUNTS <- list(
+    "1" = list(
+        "8-Bit" = 1,
+        "Big Shot" = 1,
+        "Breakout" = 0,
+        "Bruiser" = 2,
+        "Country" = 1,
+        "Crowd Diver" = 1,
+        "Dazzler" = 1,
+        "Disco" = 2,
+        "Edgelord" = 1,
+        "EDM" = 0,
+        "Emo" = 1,
+        "Executioner" = 0,
+        "Fighter" = 1,
+        "Guardian" = 2,
+        "HEARTSTEEL" = 1,
+        "Hyperpop" = 0,
+        "ILLBEATS" = 0,
+        "Jazz" = 0,
+        "K/DA" = 2,
+        "Maestro" = 0,
+        "Mixmaster" = 0,
+        "Pentakill" = 1,
+        "Punk" = 2,
+        "Rapidfire" = 1,
+        "Sentinel" = 2,
+        "Spellweaver" = 1,
+        "Superfan" = 2,
+        "True Damage" = 2,
+        "Wildcard" = 0
+    ),
+    "2" = list(
+        "8-Bit" = 1,
+        "Big Shot" = 1,
+        "Breakout" = 0,
+        "Bruiser" = 1,
+        "Country" = 1,
+        "Crowd Diver" = 1,
+        "Dazzler" = 1,
+        "Disco" = 1,
+        "Edgelord" = 1,
+        "EDM" = 1,
+        "Emo" = 0,
+        "Executioner" = 1,
+        "Fighter" = 2,
+        "Guardian" = 1,
+        "HEARTSTEEL" = 1,
+        "Hyperpop" = 0,
+        "ILLBEATS" = 0,
+        "Jazz" = 1,
+        "K/DA" = 2,
+        "Maestro" = 0,
+        "Mixmaster" = 0,
+        "Pentakill" = 2,
+        "Punk" = 2,
+        "Rapidfire" = 2,
+        "Sentinel" = 1,
+        "Spellweaver" = 2,
+        "Superfan" = 1,
+        "True Damage" = 1,
+        "Wildcard" = 0
+    ),
+    "3" = list(
+        "8-Bit" = 1,
+        "Big Shot" = 1,
+        "Breakout" = 0,
+        "Bruiser" = 1,
+        "Country" = 2,
+        "Crowd Diver" = 1,
+        "Dazzler" = 1,
+        "Disco" = 0,
+        "Edgelord" = 2,
+        "EDM" = 1,
+        "Emo" = 2,
+        "Executioner" = 2,
+        "Fighter" = 2,
+        "Guardian" = 2,
+        "HEARTSTEEL" = 2,
+        "Hyperpop" = 1,
+        "ILLBEATS" = 0,
+        "Jazz" = 1,
+        "K/DA" = 1,
+        "Maestro" = 0,
+        "Mixmaster" = 0,
+        "Pentakill" = 1,
+        "Punk" = 0,
+        "Rapidfire" = 0,
+        "Sentinel" = 2,
+        "Spellweaver" = 2,
+        "Superfan" = 1,
+        "True Damage" = 1,
+        "Wildcard" = 0
+    ),
+    "4" = list(
+        "8-Bit" = 1,
+        "Big Shot" = 1,
+        "Breakout" = 2,
+        "Bruiser" = 1,
+        "Country" = 1,
+        "Crowd Diver" = 1,
+        "Dazzler" = 1,
+        "Disco" = 2,
+        "Edgelord" = 1,
+        "EDM" = 2,
+        "Emo" = 1,
+        "Executioner" = 3,
+        "Fighter" = 1,
+        "Guardian" = 1,
+        "HEARTSTEEL" = 1,
+        "Hyperpop" = 0,
+        "ILLBEATS" = 0,
+        "Jazz" = 0,
+        "K/DA" = 2,
+        "Maestro" = 0,
+        "Mixmaster" = 0,
+        "Pentakill" = 2,
+        "Punk" = 0,
+        "Rapidfire" = 1,
+        "Sentinel" = 1,
+        "Spellweaver" = 1,
+        "Superfan" = 0,
+        "True Damage" = 1,
+        "Wildcard" = 0
+    ),
+    "5" = list(
+        "8-Bit" = 0,
+        "Big Shot" = 1,
+        "Breakout" = 0,
+        "Bruiser" = 1,
+        "Country" = 0,
+        "Crowd Diver" = 1,
+        "Dazzler" = 1,
+        "Disco" = 0,
+        "Edgelord" = 1,
+        "EDM" = 0,
+        "Emo" = 0,
+        "Executioner" = 0,
+        "Fighter" = 1,
+        "Guardian" = 1,
+        "HEARTSTEEL" = 1,
+        "Hyperpop" = 1,
+        "ILLBEATS" = 1,
+        "Jazz" = 1,
+        "K/DA" = 0,
+        "Maestro" = 1,
+        "Mixmaster" = 1,
+        "Pentakill" = 1,
+        "Punk" = 0,
+        "Rapidfire" = 1,
+        "Sentinel" = 0,
+        "Spellweaver" = 1,
+        "Superfan" = 0,
+        "True Damage" = 1,
+        "Wildcard" = 1
+    )
+)
+
+LEVEL_UP_XPS <- list(
+    "1" = 0,
+    "2" = 2,
+    "3" = 2,
+    "4" = 6,
+    "5" = 10,
+    "6" = 20,
+    "7" = 36,
+    "8" = 48,
+    "9" = 80,
+    "10" = 84
+)
+```
+
+```{r functions}
+get_level_up_gold <- function(
+    level
+) {
+    level_up_gold <- LEVEL_UP_XPS[[level]] * GOLD_PER_XP
+
+    return(level_up_gold)
+}
+
+get_roll_gold <- function(
+    roll_count
+) {
+    roll_gold <- roll_count * GOLD_PER_ROLL
+
+    return(roll_gold)
+}
+
+get_safe_roll_count <- function(
+    roll_probability,
+    confidence_level = 0.90
+) {
+    if (roll_probability == 0) {
+        return(Inf)
+    }
+
+    safe_roll_count <- log(1 - confidence_level, base = 1 - roll_probability) + 1
+    safe_roll_count <- ceiling(safe_roll_count)
+
+    return(safe_roll_count)
+}
+
+get_average_roll_count <- function(
+    roll_probability
+) {
+    average_roll_count <- 1 / roll_probability
+    average_roll_count <- ceiling(average_roll_count)
+
+    return(average_roll_count)
+}
+
+get_champion_roll_probability <- function(
+    level,
+    cost
+) {
+    cost_probability <- COST_PROBABILITIES[[level]][[cost]]
+    cost_count <- COST_COUNTS[[cost]]
+    champion_given_cost_probability <- 1 / cost_count
+
+    roll_probability <- cost_probability * champion_given_cost_probability
+
+    return(roll_probability)
+}
+
+get_any_champion_roll_probability <- function(
+    level,
+    cost
+) {
+    roll_probability <- COST_PROBABILITIES[[level]][[cost]]
+
+    return(roll_probability)
+}
+
+get_trait_roll_probability <- function(
+    level,
+    trait
+) {
+    roll_probability <- 0
+    for (cost in COSTS) {
+        cost_probability <- COST_PROBABILITIES[[level]][[cost]]
+        cost_count <- COST_COUNTS[[cost]]
+        trait_count <- TRAIT_COUNTS[[cost]][[trait]]
+        trait_given_cost_probability <- trait_count / cost_count
+
+        partial_roll_probability <- cost_probability * trait_given_cost_probability
+
+        roll_probability <- roll_probability + partial_roll_probability
+    }
+
+    return(roll_probability)
+}
+
+locate_minimum_values <- function(
+    data_,
+    columns
+) {
+    locations <-
+        data_ |>
+        select(columns) |>
+        names() |>
+        map(\(column_name) {
+            cells_body(
+                columns = column_name,
+                rows = data_[[column_name]] == min(data_[[column_name]])
+            )
+        })
+
+    return(locations)
+}
+```
+
+```{r data}
+champion_rolldown_gold <-
+    expand_grid(
+        level = LEVELS,
+        cost = COSTS
+    ) |>
+    rowwise() |>
+    mutate(
+        level_up_gold = get_level_up_gold(level),
+        average_rolldown_gold = get_roll_gold(get_average_roll_count(get_champion_roll_probability(level, cost))),
+        safe_rolldown_gold = get_roll_gold(get_safe_roll_count(get_champion_roll_probability(level, cost)))
+    ) |>
+    ungroup()
+
+champion_rolldown_gold <-
+    champion_rolldown_gold |>
+    group_by(cost) |>
+    arrange(level, .by_group = TRUE) |>
+    mutate(
+        safe_level_up_delta = (level_up_gold + safe_rolldown_gold) - lag(safe_rolldown_gold)
+    ) |>
+    ungroup()
+
+any_champion_rolldown_gold <-
+    expand_grid(
+        level = LEVELS,
+        cost = COSTS
+    ) |>
+    rowwise() |>
+    mutate(
+        level_up_gold = get_level_up_gold(level),
+        average_rolldown_gold = get_roll_gold(get_average_roll_count(get_any_champion_roll_probability(level, cost))),
+        safe_rolldown_gold = get_roll_gold(get_safe_roll_count(get_any_champion_roll_probability(level, cost))),
+    ) |>
+    ungroup()
+
+any_champion_rolldown_gold <-
+    any_champion_rolldown_gold |>
+    group_by(cost) |>
+    arrange(level, .by_group = TRUE) |>
+    mutate(
+        safe_level_up_delta = (level_up_gold + safe_rolldown_gold) - lag(safe_rolldown_gold)
+    ) |>
+    ungroup()
+
+trait_rolldown_gold <-
+    expand_grid(
+        level = LEVELS,
+        trait = TRAITS
+    ) |>
+    rowwise() |>
+    mutate(
+        level_up_gold = get_level_up_gold(level),
+        average_rolldown_gold = get_roll_gold(get_average_roll_count(get_trait_roll_probability(level, trait))),
+        safe_rolldown_gold = get_roll_gold(get_safe_roll_count(get_trait_roll_probability(level, trait)))
+    ) |>
+    ungroup()
+
+trait_rolldown_gold <-
+    trait_rolldown_gold |>
+    group_by(trait) |>
+    arrange(level, .by_group = TRUE) |>
+    mutate(
+        safe_level_up_delta = (level_up_gold + safe_rolldown_gold) - lag(safe_rolldown_gold)
+    ) |>
+    ungroup()
+```
+
+## Summary
+
+TODO.
+
+## Introduction
+
+TODO.
+
+## The math
+
+TODO.
+
+## The analysis
+
+```{r champion safe rolldown gold}
+wide_champion_rolldown_gold <-
+    champion_rolldown_gold |>
+    select(
+        level,
+        cost,
+        safe_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = safe_rolldown_gold
+    ) |>
+    rename_with(
+        \(column_name) str_glue("Cost {column_name}"),
+        2:6
+    )
+
+wide_champion_rolldown_gold |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Safe rolldown gold (specific champion)"
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        values = Inf,
+        replace = ""
+    ) |>
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = locate_minimum_values(
+            wide_champion_rolldown_gold,
+            columns = 2:6
+        )
+    )
+```
+
+```{r any champion safe rolldown gold}
+wide_any_champion_rolldown_gold <-
+    any_champion_rolldown_gold |>
+    select(
+        level,
+        cost,
+        safe_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = safe_rolldown_gold
+    ) |>
+    rename_with(
+        \(column_name) str_glue("Cost {column_name}"),
+        2:6
+    )
+
+wide_any_champion_rolldown_gold |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Safe rolldown gold (any champion)"
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        values = Inf,
+        replace = ""
+    ) |>
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = locate_minimum_values(
+            wide_any_champion_rolldown_gold,
+            columns = 2:6
+        )
+    )
+```
+
+```{r trait origins safe rolldown gold}
+#| column: screen-inset-shaded
+
+wide_trait_origin_rolldown_gold <-
+    trait_rolldown_gold |>
+    filter(trait %in% ORIGINS) |>
+    select(
+        level,
+        trait,
+        safe_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = trait,
+        values_from = safe_rolldown_gold
+    )
+
+wide_trait_origin_rolldown_gold |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Safe rolldown gold"
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:ncol(wide_trait_origin_rolldown_gold),
+        values = Inf,
+        replace = ""
+    ) |>
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = locate_minimum_values(
+            wide_trait_origin_rolldown_gold,
+            columns = 2:ncol(wide_trait_origin_rolldown_gold)
+        )
+    )
+```
+
+```{r trait classes safe rolldown gold}
+#| column: screen-inset-shaded
+
+wide_trait_class_rolldown_gold <-
+    trait_rolldown_gold |>
+    filter(! trait %in% ORIGINS) |>
+    select(
+        level,
+        trait,
+        safe_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = trait,
+        values_from = safe_rolldown_gold
+    )
+
+wide_trait_class_rolldown_gold |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Safe rolldown gold"
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:ncol(wide_trait_class_rolldown_gold),
+        values = Inf,
+        replace = ""
+    ) |>
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = locate_minimum_values(
+            wide_trait_class_rolldown_gold,
+            columns = 2:ncol(wide_trait_class_rolldown_gold)
+        )
+    )
+```
+
+```{r cost safe rolldown gold}
+```
+
+## The strategy
+
+TODO.
+
+## Disclaimer
+
+There is a mechanism called "bad luck protection" that protects the player from rolling the same headliner too often. I did not implement this mechanism as there is no documentation on how it works.
+
+## Useful codes
+
+```r
+champions <- read_csv("champions.csv")
+champions |>
+    pivot_longer(c(trait_0, trait_1, trait_2), names_to = "trait_index", values_to = "trait") |>
+    count(cost, trait) |>
+    complete(cost, trait, fill = list("n" = 0)) |>
+    pmap_chr(~ str_glue("{..1}, '{..2}' = {..3}")) |>
+    map(print)
+```
