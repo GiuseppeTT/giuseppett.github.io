@@ -1,0 +1,501 @@
+---
+title: "TFT rolldown analysis"
+author: "Giuseppe Tinti Tomio"
+date: "2023-11-14"
+categories: [analysis, game]
+image: "image.webp"
+execute:
+  echo: false
+  warning: false
+---
+
+```{r libraries}
+library(tidyverse)
+library(gt)
+library(furrr)
+```
+
+```{r constants}
+SEED <- 42
+WORKER_COUNT <- 10
+SAMPLE_COUNT <- 10e2
+
+ONE_STAR_CHAMPION_MULTIPLE <- 1
+TWO_STAR_CHAMPION_MULTIPLE <- 3
+THREE_STAR_CHAMPION_MULTIPLE <- 9
+
+LEVELS <- 1:10
+COSTS <- 1:5
+
+GOLD_PER_ROLL <- 2 / 1
+GOLD_PER_XP <- 4 / 4
+SHOP_SIZE <- 5
+
+TARGET_CHAMPION_POOL_SIZES <- list(
+    "1" = 22,
+    "2" = 20,
+    "3" = 17,
+    "4" = 10,
+    "5" = 9
+)
+
+SAME_COST_CHAMPION_POOL_SIZES <- list(
+    "1" = 13 * TARGET_CHAMPION_POOL_SIZES[[1]],
+    "2" = 13 * TARGET_CHAMPION_POOL_SIZES[[2]],
+    "3" = 13 * TARGET_CHAMPION_POOL_SIZES[[3]],
+    "4" = 13 * TARGET_CHAMPION_POOL_SIZES[[4]],
+    "5" = 8 * TARGET_CHAMPION_POOL_SIZES[[5]]
+)
+
+SAME_COST_CHAMPION_PROBABILITIES <- list(
+    "1" = list(
+        "1" = 1.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "2" = list(
+        "1" = 1.00,
+        "2" = 0.00,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "3" = list(
+        "1" = 0.75,
+        "2" = 0.25,
+        "3" = 0.00,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "4" = list(
+        "1" = 0.55,
+        "2" = 0.30,
+        "3" = 0.15,
+        "4" = 0.00,
+        "5" = 0.00
+    ),
+    "5" = list(
+        "1" = 0.45,
+        "2" = 0.33,
+        "3" = 0.20,
+        "4" = 0.02,
+        "5" = 0.00
+    ),
+    "6" = list(
+        "1" = 0.30,
+        "2" = 0.40,
+        "3" = 0.25,
+        "4" = 0.05,
+        "5" = 0.00
+    ),
+    "7" = list(
+        "1" = 0.19,
+        "2" = 0.35,
+        "3" = 0.35,
+        "4" = 0.10,
+        "5" = 0.01
+    ),
+    "8" = list(
+        "1" = 0.18,
+        "2" = 0.25,
+        "3" = 0.36,
+        "4" = 0.18,
+        "5" = 0.03
+    ),
+    "9" = list(
+        "1" = 0.10,
+        "2" = 0.20,
+        "3" = 0.25,
+        "4" = 0.35,
+        "5" = 0.10
+    ),
+    "10" = list(
+        "1" = 0.05,
+        "2" = 0.10,
+        "3" = 0.20,
+        "4" = 0.40,
+        "5" = 0.25
+    )
+)
+
+LEVEL_UP_XPS <- list(
+    "1" = 0,
+    "2" = 2,
+    "3" = 2,
+    "4" = 6,
+    "5" = 10,
+    "6" = 20,
+    "7" = 36,
+    "8" = 48,
+    "9" = 80,
+    "10" = 84
+)
+```
+
+```{r functions}
+get_level_up_gold <- function(
+    level
+) {
+    level_up_gold <- LEVEL_UP_XPS[[level]] * GOLD_PER_XP
+
+    return(level_up_gold)
+}
+
+get_roll_gold <- function(
+    roll_count
+) {
+    roll_gold <- roll_count * GOLD_PER_ROLL
+
+    return(roll_gold)
+}
+
+simulate_rolldown <- function(
+    level,
+    cost
+) {
+    same_cost_champion_probability <- SAME_COST_CHAMPION_PROBABILITIES[[level]][[cost]]
+    same_cost_champion_pool_size <- SAME_COST_CHAMPION_POOL_SIZES[[cost]]
+    target_champion_pool_size <- TARGET_CHAMPION_POOL_SIZES[[cost]]
+
+    # Base case
+    if (same_cost_champion_probability == 0 | target_champion_pool_size == 0) {
+        return(rep(Inf, THREE_STAR_CHAMPION_MULTIPLE))
+    }
+
+    # General case
+    roll_counts <- integer(THREE_STAR_CHAMPION_MULTIPLE)
+
+    roll_offset <- sample(0:3, size = 1)  # Randomize initial number of rolls till next headliner
+    roll_count <- 0
+    bought_count <- 0
+    while (bought_count < THREE_STAR_CHAMPION_MULTIPLE) {
+        # Step 1: roll
+        roll_count <- roll_count + 1
+
+        # Step 2: Update shop
+        if (roll_count + roll_offset %% 4 == 0) {
+            available_shop_size <- SHOP_SIZE - 1
+        } else {
+            available_shop_size <- SHOP_SIZE
+        }
+        same_cost_champion_count <- rbinom(
+            1,
+            size = available_shop_size,
+            prob = same_cost_champion_probability
+        )
+        target_champion_count <- rhyper(
+            1,
+            m = target_champion_pool_size,
+            n = same_cost_champion_pool_size - target_champion_pool_size,
+            k = same_cost_champion_count
+        )
+
+        # Step 3: Buy all target champions and save the roll count for the given number of champions bought
+        while (target_champion_count > 0 & bought_count < THREE_STAR_CHAMPION_MULTIPLE) {
+            bought_count <- bought_count + 1
+            target_champion_count <- target_champion_count - 1
+            same_cost_champion_pool_size <- same_cost_champion_pool_size - 1
+            target_champion_pool_size <- target_champion_pool_size - 1
+
+            roll_counts[bought_count] <- roll_count
+        }
+    }
+
+    return(roll_counts)
+}
+
+```
+
+```{r set up}
+set.seed(SEED)
+
+plan(multisession, workers = WORKER_COUNT)
+```
+
+```{r data}
+rolldown_gold <- expand_grid(
+    level = LEVELS,
+    cost = COSTS
+)
+
+rolldown_gold <-
+    rolldown_gold |>
+    mutate(roll_counts = future_map2(
+        level,
+        cost,
+        \(level, cost) replicate(n = SAMPLE_COUNT, simulate_rolldown(level, cost)),
+        .options = furrr_options(seed = TRUE)
+    ))
+
+rolldown_gold <-
+    rolldown_gold |>
+    rowwise() |>
+    mutate(roll_count_statistics = list(tibble(
+        bought_count = seq(1, THREE_STAR_CHAMPION_MULTIPLE),
+        average_roll_count = apply(roll_counts, 1, \(x) mean(x)),
+        sd_average_roll_count = apply(roll_counts, 1, \(x) sd(x) / sqrt(length(x))),
+        safe_roll_count = apply(roll_counts, 1, \(x) quantile(x, probs = 0.9))
+    ))) |>
+    ungroup()
+
+rolldown_gold <-
+    rolldown_gold |>
+    select(-roll_counts) |>
+    unnest(roll_count_statistics)
+
+rolldown_gold <-
+    rolldown_gold |>
+    mutate(
+        average_rolldown_gold = get_roll_gold(ceiling(average_roll_count)),
+        safe_rolldown_gold = get_roll_gold(ceiling(safe_roll_count))
+    )
+
+rolldown_gold <-
+    rolldown_gold |>
+    rowwise() |>
+    mutate(
+        level_up_gold = get_level_up_gold(level)
+    ) |>
+    ungroup()
+
+rolldown_gold <-
+    rolldown_gold |>
+    group_by(bought_count, cost) |>
+    arrange(level, .by_group = TRUE) |>
+    mutate(
+        safe_level_up_delta = (level_up_gold + safe_rolldown_gold) - lag(safe_rolldown_gold)
+    ) |>
+    ungroup()
+```
+
+# Summary
+
+- Level 4: 2 cost 1-star
+- Level 5: 3 cost 1-star
+- Level 6: Nothing
+- Level 7: Nothing
+- Level 8: 4 cost 1-star
+- Level 9: 5 cost 1-star
+- Level 10: Nothing
+
+- Level 4: 2 cost 2-star
+- Level 5: Nothing
+- Level 6: 3 cost 2-star
+- Level 7: Nothing
+- Level 8: Nothing
+- Level 9: 4 cost 2-star
+- Level 10: 5 cost 2-star
+
+# Introduction
+
+TODO.
+
+# The math
+
+TODO.
+
+# The analysis
+
+```{r average rolldown gold one star}
+rolldown_gold |>
+    filter(bought_count == ONE_STAR_CHAMPION_MULTIPLE) |>
+    select(
+        level,
+        cost,
+        average_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = average_rolldown_gold
+    ) |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Average rolldown gold (1 star)"
+    ) |>
+    tab_spanner(
+        label = "Unit cost",
+        columns = 2:6
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        values = Inf,
+        replace = ""
+    )
+```
+
+```{r safe rolldown gold one star}
+rolldown_gold |>
+    filter(bought_count == ONE_STAR_CHAMPION_MULTIPLE) |>
+    select(
+        level,
+        cost,
+        safe_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = safe_rolldown_gold
+    ) |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Safe rolldown gold (1 star)"
+    ) |>
+    tab_spanner(
+        label = "Unit cost",
+        columns = 2:6
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        values = Inf,
+        replace = ""
+    )
+```
+
+```{r safe rolldown gold two star}
+rolldown_gold |>
+    filter(bought_count == TWO_STAR_CHAMPION_MULTIPLE) |>
+    select(
+        level,
+        cost,
+        average_rolldown_gold
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = average_rolldown_gold
+    ) |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Average rolldown gold (2 stars)"
+    ) |>
+    tab_spanner(
+        label = "Unit cost",
+        columns = 2:6
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        values = Inf,
+        replace = ""
+    )
+```
+
+TODO.
+
+# Appendix
+
+## TODO.
+
+```{r}
+rolldown_gold |>
+    filter(bought_count == ONE_STAR_CHAMPION_MULTIPLE) |>
+    filter(safe_level_up_delta < 0) |>
+    group_by(cost) |>
+    slice_max(level) |>
+    ungroup() |>
+    select(
+        cost,
+        level,
+        safe_rolldown_gold
+    )
+```
+
+```{r}
+rolldown_gold |>
+    filter(bought_count == TWO_STAR_CHAMPION_MULTIPLE) |>
+    filter(safe_level_up_delta < 0) |>
+    group_by(cost) |>
+    slice_max(level) |>
+    ungroup() |>
+    select(
+        cost,
+        level,
+        safe_rolldown_gold
+    )
+```
+
+```{r}
+rolldown_gold |>
+    filter(bought_count > 0) |>
+    filter(level == 6) |>
+    ggplot(aes(x = bought_count, y = safe_rolldown_gold, color = factor(cost))) +
+    geom_line() +
+    scale_y_log10()
+```
+
+```{r}
+rolldown_gold |>
+    filter(bought_count == ONE_STAR_CHAMPION_MULTIPLE) |>
+    ungroup() |>
+    select(
+        level,
+        cost,
+        safe_level_up_delta
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = safe_level_up_delta
+    ) |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Level up safe rolldown delta"
+    ) |>
+    tab_spanner(
+        label = "Unit cost",
+        columns = 2:6
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        fn = \(x) is.infinite(x) | is.na(x) | is.nan(x),
+        replace = ""
+    )
+```
+
+```{r}
+rolldown_gold |>
+    filter(bought_count == TWO_STAR_CHAMPION_MULTIPLE) |>
+    ungroup() |>
+    select(
+        level,
+        cost,
+        safe_level_up_delta
+    ) |>
+    pivot_wider(
+        names_from = cost,
+        values_from = safe_level_up_delta
+    ) |>
+    gt(rowname_col = "level") |>
+    tab_header(
+        title = "Level up safe rolldown delta (2-star)"
+    ) |>
+    tab_spanner(
+        label = "Unit cost",
+        columns = 2:6
+    ) |>
+    fmt_integer(
+        columns = 1,
+        pattern = "Level {x}"
+    ) |>
+    sub_values(
+        columns = 2:6,
+        fn = \(x) is.infinite(x) | is.na(x) | is.nan(x),
+        replace = ""
+    )
+```
+
+TODO.
